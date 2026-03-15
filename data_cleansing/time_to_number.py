@@ -11,13 +11,25 @@ def convert_time_series(series):
     hm = s.str.extract(pattern)
     h = pd.to_numeric(hm[0], errors='coerce')
     m = pd.to_numeric(hm[1], errors='coerce')
-    return (h * 100 + m).fillna(0).astype("int32")
+    return (h * 60 + m).fillna(0).astype("int32")
 
 def time_to_minutes(v):
+
     if v == "" or pd.isna(v):
         return 0
-    h, m = v.split(":")
-    return int(h) * 60 + int(m)
+
+    if isinstance(v, str):
+        v = v.strip()
+
+    parts = v.split(":")
+
+    if len(parts) < 2:
+        return 0
+
+    h = int(parts[0])
+    m = int(parts[1])
+
+    return h * 60 + m
 
 
 def time_to_number(df):
