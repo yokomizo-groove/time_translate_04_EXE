@@ -1,0 +1,282 @@
+my_streamlit_app
+ ├ run_app.vbs
+ ├ run_app.bat
+ ├ python
+ ├ ui
+ │   └ app.py
+ └ logic
+
+ui/app.py   → Streamlit画面
+logic       → 処理ロジック
+python      → 同梱Python
+
+python-3.12-embed-amd64.zip
+
+my_streamlit_app/python
+
+python312._pth
+
+python312.zip
+.
+import site
+
+python.exe get-pip.py
+
+python.exe -m pip install streamlit pandas numpy openpyxl
+
+.batファイル
+@echo off
+cd /d %~dp0
+python\python.exe -m streamlit run ui/app.py
+
+.vbsファイル
+Set WshShell = CreateObject("WScript.Shell")
+WshShell.Run "run_app.bat", 0
+Set WshShell = Nothing
+
+
+内部構成
+tool_name
+ ├ start.vbs
+ ├ start.bat
+ ├ python
+ ├ ui
+ ├ logic
+ └ data
+
+tool_name
+ ├ start.vbs
+ ├ start.bat
+ ├ python
+ ├ ui
+ │   └ app.py
+ ├ logic
+ │   ├ load_file.py
+ │   ├ calc.py
+ │   └ export.py
+ ├ data
+ │   └ sample.xlsx
+ ├ config
+ │   └ config.yaml
+ └ assets
+     └ logo.png
+
+
+起動フロー
+ユーザー
+ ↓
+start.vbs
+ ↓
+start.bat
+ ↓
+python\python.exe
+ ↓
+streamlit
+ ↓
+ui/app.py
+ ↓
+ブラウザ表示
+
+VBAから読み取ったフロー案
+tool
+ ├ ui
+ │   └ app.py
+ ├ logic
+ │   ├ preprocess.py
+ │   ├ basic_check.py
+ │   ├ forgot_scan.py
+ │   ├ holiday_work.py
+ │   ├ holiday_count.py
+ │   └ special_leave.py
+ ├ data
+ │   └ intermediate
+ └ output
+
+勤務表データの圧縮
+各文字列データの数値化
+
+df = preprocess.compress(df)
+df = preprocess.normalize(df)
+df = employee.fix_employee_id(df)
+df = df.sort_values(["社員番号","日付"])
+df = df.merge(org_df, on="社員番号")
+result_basic = basic_check.run(df)
+forgot = forgot_scan.run(df)
+holiday = holiday_work.run(df)
+holiday_count = holiday_count.run(holiday)
+special = special_leave.run(df)
+
+中間状態
+parquet
+csv
+pickle
+ベターは
+parquet
+df.to_parquet("data/intermediate/step1.parquet")
+df = pd.read_parquet("data/intermediate/step1.parquet")
+
+フローをまとめると
+df = load_attendance()
+df = preprocess.run(df)
+save("step1")
+df = employee.fix(df)
+save("step2")
+df = merge_org(df)
+save("step3")
+basic = basic_check.run(df)
+forgot = forgot_scan.run(df)
+holiday = holiday_work.run(df)
+holiday_count = holiday_count.run(holiday)
+special = special_leave.run(df)
+export_all()
+
+ディレクトリ構成案
+attendance_tool
+ ├ start.vbs
+ ├ start.bat
+ ├ python
+ ├ ui
+ │   └ app.py
+ ├ logic
+ │   ├ preprocess.py
+ │   ├ employee.py
+ │   ├ sort_data.py
+ │   ├ org_db.py
+ │   ├ basic_check.py
+ │   ├ forgot_count.py
+ │   ├ holiday_work.py
+ │   ├ holiday_count.py
+ │   ├ special_leave.py
+ │   └ export.py
+ ├ data
+ │   ├ input
+ │   └ intermediate
+ └ output
+
+| VBA処理       | Pythonモジュール      |
+| ----------- | ---------------- |
+| 勤務表データの圧縮   | preprocess.py    |
+| 各文字列データの数値化 | preprocess.py    |
+| 従業員番号の修正    | employee.py      |
+| データソート      | sort_data.py     |
+| 組織DB取り込み    | org_db.py        |
+| 基本チェック      | basic_check.py   |
+| 打忘回数        | forgot_count.py  |
+| 公休日労働       | holiday_work.py  |
+| 公休日労働回数     | holiday_count.py |
+| 特休公休        | special_leave.py |
+| 外部出力        | export.py        |
+
+
+import pandas as pd
+
+from logic import preprocess
+from logic import employee
+from logic import sort_data
+from logic import org_db
+from logic import basic_check
+from logic import forgot_count
+from logic import holiday_work
+from logic import holiday_count
+from logic import special_leave
+from logic import export
+
+＊main_process.py*
+def run_pipeline(input_file):
+
+    df = pd.read_excel(input_file)
+
+    # データ加工
+    df = preprocess.compress(df)
+    df = preprocess.convert_numeric(df)
+
+    # 名簿修正
+    df = employee.fix_employee_id(df)
+
+    # ソート
+    df = sort_data.sort_main(df)
+
+    # 組織DB
+    df = org_db.merge_org(df)
+
+    # 基本チェック
+    basic_result = basic_check.run(df)
+
+    # 打忘れ
+    forgot_result = forgot_count.run(df)
+
+    # 公休日労働
+    holiday_result = holiday_work.run(df)
+
+    # 公休日労働回数
+    holiday_count_result = holiday_count.run(holiday_result)
+
+    # 特休
+    special_result = special_leave.run(df)
+
+    # 出力
+    export.run(
+        basic_result,
+        forgot_result,
+        holiday_result,
+        holiday_count_result,
+        special_result
+    )
+
+*UIのコード案*
+UI/app.py
+import streamlit as st
+from logic.main_process import run_pipeline
+
+st.title("勤務分析ツール")
+
+file = st.file_uploader("勤務表アップロード")
+
+if file:
+    st.write("処理開始")
+    run_pipeline(file)
+    st.success("完了しました")
+
+*EXCEL出力*
+with pd.ExcelWriter("output/result.xlsx") as writer:
+
+    basic_result.to_excel(writer, sheet_name="基本チェック")
+    forgot_result.to_excel(writer, sheet_name="打忘回数")
+    holiday_result.to_excel(writer, sheet_name="公休日労働")
+    holiday_count_result.to_excel(writer, sheet_name="公休日回数")
+    special_result.to_excel(writer, sheet_name="特休公休")
+
+＊ファイルを一つで出力＊
+import pandas as pd
+
+def export_all(
+    basic_result,
+    forgot_result,
+    holiday_result,
+    holiday_count_result,
+    special_result
+):
+
+    with pd.ExcelWriter("output/result.xlsx", engine="openpyxl") as writer:
+        basic_result.to_excel(writer, sheet_name="基本チェック", index=False)
+        forgot_result.to_excel(writer, sheet_name="打忘回数", index=False)
+        holiday_result.to_excel(writer, sheet_name="公休日労働実績", index=False)
+        holiday_count_result.to_excel(writer, sheet_name="公休日労働回数", index=False)
+        special_result.to_excel(writer, sheet_name="特休公休", index=False)
+
+＊出力ファイルを日付つきにする＊
+from datetime import datetime
+
+today = datetime.today().strftime("%Y%m%d")
+
+filename = f"output/勤務分析_{today}.xlsx"
+
+
+2026/3/11の最後の提案
+① CSVの自動月チェック（11月→12月など）
+② 従業員番号ごとのソート
+③ 勤怠異常の自動検出
+④ Excel出力（シート複数）
+⑤ 処理ログ表示
+
+
