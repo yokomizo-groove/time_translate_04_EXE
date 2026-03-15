@@ -1,8 +1,10 @@
 import pandas as pd
 from basic_check.columns import build_col_to_index
+from data_cleansing.time_to_number import time_to_minutes
 
 
 def run_basic_checks(final_array, headers):
+    
     col_to_index = build_col_to_index(headers)
 
     # def get(row, name):
@@ -10,13 +12,19 @@ def run_basic_checks(final_array, headers):
 
     def get(row, name):
         v = row[col_to_index[name]]
-        if pd.isna(v) or v == "" or str(v) == "NaT":
-            return 0
-        try:
-            return int(v)
-        except:
-            return 0
-
+        
+        # NaN / NaT / None
+        if pd.isna(v):
+            return ""
+        
+        # 文字列
+        if isinstance(v, str):
+            v = v.strip()
+        
+        if v == "":
+            return ""
+        
+        return v
 
     results = []
 
@@ -53,7 +61,7 @@ def run_basic_checks(final_array, headers):
         # --- Part3 ---
         check_0301_0302(row, i, results, get)
         check_0303_0304(row, i, results, get)
-        check_0305_0306(row, i, results, get)
+        check_0305_0306(row, i, results, get, final_array)
         check_0307(row, i, results, get)
         check_0308(row, i, results, get)
         check_0401_1(row, i, results, get)
@@ -188,9 +196,9 @@ def check_0110(row, i, results, get):
 def check_0201(row, i, results, get):
     if (
         str(get(row, "調休換算時間")).startswith("-") and
-        get(row, "遅刻早退区分") == "" and
-        get(row, "遅刻早退理由") == "" and
-        get(row, "所属") != "地下鉄Ｇ"
+        get(row, "不就業１区分") == "" and
+        get(row, "不就業１時間") == "" # and
+        # get(row, "所属") != "地下鉄Ｇ"
     ):
         results.append({
             "エラー名": "②①調休換算マイナス",
@@ -295,25 +303,23 @@ def check_0206_1(row, i, results, get):
 
     flag = 0
 
-    # 終業時刻の安全な数値化
-    raw_end = get(row, "終業時刻")
-    try:
-        end_time = int(raw_end)
-    except:
-        end_time = 0
+    start = time_to_minutes(get(row, "始業時刻"))
+    clock_in = time_to_minutes(get(row, "出勤打刻"))
+    end = time_to_minutes(get(row, "終業時刻"))
+    clock_out = time_to_minutes(get(row, "退勤打刻"))
 
-    # 24:00 を超える場合の補正
-    if end_time > 1440:
-        end_time -= 1440
+    # 24:00超え補正（念のため）
+    if end > 1440:
+        end -= 1440
 
     # 遅刻早退フラグ判定
     if get(row, "不就業１区分") in ("遅刻", "早退"):
         flag = 1
 
-    elif get(row, "出勤打刻") - get(row, "始業時刻") > 0:
+    elif clock_in - start > 0:
         flag = 1
 
-    elif get(row, "退勤打刻") - end_time < 0 and get(row, "退勤時刻") != 0:
+    elif clock_out - end < 0 and clock_out != 0:
         flag = 1
 
     # 理由なし
@@ -449,7 +455,7 @@ def check_0303_0304(row, i, results, get):
 
 
 # ③⑤③⑥：FSアル休 / PS特休
-def check_0305_0306(row, i, results, get):
+def check_0305_0306(row, i, results, get, final_array):
 
     # i が偶数行のときだけチェック（VBA と同じ）
     if i % 2 == 0:
