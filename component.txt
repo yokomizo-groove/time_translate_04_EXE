@@ -1,0 +1,21 @@
+project/
+│
+├─ main.py              ← エントリ（呼び出し専用）
+├─ config/
+│   └─ settings.py
+│
+├─ domain/              ← 業務ロジック（ここが本体）
+│   ├─ attendance.py
+│   ├─ rules.py
+│   └─ validator.py
+│
+├─ infrastructure/      ← 外部とのやり取り
+│   ├─ csv_loader.py
+│   ├─ dataverse_client.py
+│   └─ excel_exporter.py
+│
+├─ application/         ← 制御フロー（重要）
+│   └─ usecase.py
+│
+└─ utils/
+    └─ logger.py
